@@ -1,0 +1,30 @@
+{
+  "noteplan.minAppVersion": "3.5.2",
+  "macOS.minVersion": "10.15.7",
+  "iOS.minVersion": "14",
+  "plugin.id": "nomasprime.Session",
+  "plugin.name": "🎯 Session",
+  "plugin.description": "Start a Session focus session from the current NotePlan task, using a selected NotePlan note title as the Session category.",
+  "plugin.author": "Nomas Prime",
+  "plugin.version": "0.1.9",
+  "plugin.dependencies": [],
+  "plugin.script": "script.js",
+  "plugin.lastUpdateInfo": "/start now asks you to select a NotePlan note and uses its title as the Session category.",
+  "plugin.requiredFiles": [],
+  "plugin.commands": [
+    {
+      "name": "start",
+      "description": "Start Session using the current task as the intent and a selected NotePlan note title as the category.",
+      "jsFunction": "sendToSession"
+    }
+  ],
+  "plugin.settings": [
+    {
+      "type": "string",
+      "key": "durationMinutes",
+      "title": "Session duration in minutes",
+      "description": "Defaults to 30 minutes.",
+      "default": "30"
+    }
+  ]
+}
