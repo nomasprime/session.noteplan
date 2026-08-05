@@ -228,13 +228,13 @@ function getSettingString(settings, key) {
 
 function cleanTaskText(text) {
   const cleaned = String(text || '')
-    .replace(/^\s*(?:[-*+]|\d+\.)\s+\[[ xX>\-]\]\s*/, '')
+    .replace(/^\s*(?:[-*+]|\d+\.)\s+\[[ xX>-]]\s*/, '')
     .replace(/^\s*(?:[-*+]|\d+\.)\s+/, '')
     .replace(/\s+\^[A-Za-z0-9_-]+\s*$/, '')
     .replace(/\s+#\S+/g, '')
     .replace(/\s+@\S+/g, '')
     .replace(/\s+>\d{4}-\d{2}-\d{2}/g, '')
-    .replace(/\s+\{[^}]+\}/g, '')
+    .replace(/\s+\{[^}]+}/g, '')
     .replace(/\s+/g, ' ')
     .trim()
 
@@ -242,7 +242,7 @@ function cleanTaskText(text) {
 }
 
 function isTaskMarkerLine(text) {
-  return /^\s*(?:[-*+]|\d+\.)\s+\[[ xX>\-]\]\s+/.test(String(text || ''))
+  return /^\s*(?:[-*+]|\d+\.)\s+\[[ xX>-]]\s+/.test(String(text || ''))
 }
 
 function isPlainListLine(text) {
@@ -251,7 +251,7 @@ function isPlainListLine(text) {
 
 function cleanNoteLinkText(text) {
   return String(text || '')
-    .replace(/^\[\[([^\]|]+)(?:\|([^\]]+))?\]\]$/, function (_match, title, alias) {
+    .replace(/^\[\[([^\]|]+)(?:\|([^\]]+))?]]$/, function (_match, title, alias) {
       return (alias || title || '').trim()
     })
     .trim()
@@ -364,3 +364,40 @@ function stringifyError(error) {
 Object.assign(typeof globalThis === 'undefined' ? this : globalThis, {
   sendToSession
 })
+
+// Expose the plugin internals to Node-based tests without changing NotePlan's
+// global command entry point or requiring a build step for the installed plugin.
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    sendToSession,
+    getCurrentParagraph,
+    isTaskLike,
+    getNotePlanCallbackURL,
+    getNoteTitle,
+    selectSessionCategoryName,
+    getNoteChoiceLabel,
+    getSelectedOptionIndex,
+    getPluginSettings,
+    buildSessionURL,
+    openSessionURL,
+    addXSuccess,
+    getDurationMinutes,
+    getSettingString,
+    cleanTaskText,
+    isTaskMarkerLine,
+    isPlainListLine,
+    cleanNoteLinkText,
+    getCurrentLineText,
+    getParagraphText,
+    getSelectedLinesText,
+    getSelectedText,
+    getSelectionLineText,
+    getRawNoteLine,
+    getActiveNoteContent,
+    firstNonEmptyString,
+    normalizeTextCandidate,
+    getEditorTextDebugInfo,
+    showMessage,
+    stringifyError
+  }
+}

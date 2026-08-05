@@ -56,6 +56,18 @@ Session's URL scheme can select an existing category by `categoryName`, but it c
 - NotePlan with plugin support.
 - Session Pro, because Session's URL scheme is a Pro feature.
 
+## Tests
+
+The Vitest suite documents the plugin's current task parsing, note selection,
+URL construction, and NotePlan integration behaviour.
+
+```sh
+pnpm install
+pnpm test
+```
+
+Use `pnpm run test:watch` while developing.
+
 ## Session URL produced
 
 The command sends Session a URL like:
