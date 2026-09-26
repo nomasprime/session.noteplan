@@ -1,5 +1,15 @@
 # 🎯 Session
 
+A NotePlan plugin for [Session](https://www.stayinsession.com/).
+
+Allows users to:
+
+- Transform estimated items into timeblocks using duration shorthand
+- Add timeblocks to unestimated items
+- Automatically start sessions with backlinks to the corresponding timeblock
+
+Recommend keeping working notes in NotePlan and focus or workflow notes in Session.
+
 ## Requirements
 
 - NotePlan
@@ -118,22 +128,10 @@ The plugin settings control new child sessions:
 
 Session starts for the setting's duration with a cleaned derivative of the selected item's title as the intention and a backlink to the new child timeblock inserted into the notes.
 
-### Session And NotePlan
-
-The plugin sends Session the intention, duration, and backlink. Session uses its
-default category. Keep substantive work and notes in NotePlan. Completing or
-cancelling an item in NotePlan is separate from Session's status; statuses are not
-synced. Completing a child session does not complete its parent.
-
-Completed, cancelled, and scheduled-original (`[>]`) items are excluded. For a
-rescheduled item, select its active copy. An open item with a date link is allowed.
-
-No `#focus` or `#bokeh` tag is required or interpreted. Existing tags remain ordinary
-text; this version does not remove them. The old `#focus(50m)` and `#bokeh(20m)`
-shorthand does not supply a duration. Use apostrophe estimates instead.
-
 ## Other Details
 
+- Session manages category
+- Item statuses are not automatically synced
 - Today's daily note supplies the date implicitly. Elsewhere, the actual
   timeblock gets today's `>YYYY-MM-DD` link. Existing explicit day links are
   replaced on that item; creating a child leaves the source's dates unchanged.
