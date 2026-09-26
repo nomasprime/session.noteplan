@@ -12,7 +12,7 @@ Recommend keeping working notes in NotePlan and focus or workflow notes in Sessi
 
 ## Requirements
 
-- NotePlan
+- NotePlan with timeblock detection enabled
 - Session Pro
 
 ## Starting A Session
@@ -130,21 +130,15 @@ Session starts for the setting's duration with a cleaned derivative of the selec
 
 ## Other Details
 
-- Session manages category
+- Session manages the session's category
 - Item statuses are not automatically synced
-- Today's daily note supplies the date implicitly. Elsewhere, the actual
-  timeblock gets today's `>YYYY-MM-DD` link. Existing explicit day links are
-  replaced on that item; creating a child leaves the source's dates unchanged.
-  Displaying blocks from other calendar notes on today's timeline still needs
-  verification in NotePlan.
+- Timeblocks outside today’s daily note get today’s date link (`>YYYY-MM-DD`)
 - The plugin adds NotePlan's required timeblock marker if one is configured in
-  **Settings → Tasks → Detect Time Blocks**. Timeblock detection must be enabled.
-- Backlinks use NotePlan's title-and-block-ID URL format. Renaming a note can
-  invalidate an existing Session backlink.
-- End times wrap across midnight. NotePlan controls how overnight blocks appear
-  in the timeline; the plugin does not split them into separate notes.
-- The note is saved before Session launches. If launching fails, the saved block
-  remains and an error is shown.
+  **Settings → Tasks → Detect Time Blocks**
+- Backlinks use NotePlan's title-and-block-ID URL format (renaming a note can
+  invalidate an existing Session backlink)
+- NotePlan controls how overnight blocks appear in the timeline, the plugin does not split them into separate notes
+- If launching fails, the saved block remains and an error is shown
 - If observing old behaviour, try reloading plugins or restarting NotePlan
 
 ## Development
