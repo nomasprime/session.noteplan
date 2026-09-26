@@ -60,7 +60,15 @@ Running again at 10:00 shifts the time block to this time:
 And updates the duration if a new estimate has been added:
 
 ```markdown
-+ 10:00 - 10:30 Startup '30m ^abc123
++ 10:00 - 10:20 Startup '30m ^abc123
+  + Splash face
+  + Protein shake
+```
+
+becomes:
+
+```markdown
++ 10:00 - 10:30 Startup ^abc123
   + Splash face
   + Protein shake
 ```
