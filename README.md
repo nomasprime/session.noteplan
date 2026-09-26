@@ -1,89 +1,166 @@
 # 🎯 Session
 
-Author: **Nomas Prime**
-
-A NotePlan plugin that adds one command:
-
-```text
-/start
-```
-
-It starts a Session focus session from the current NotePlan task or checklist item.
-
-## What gets sent
-
-Given this NotePlan task:
-
-```markdown
-- [ ] Write architecture proposal #deep @computer
-```
-
-After you search for and select the NotePlan note titled `Influenza`, the plugin sends:
-
-- Session `intent`: `Write architecture proposal`
-- Session `duration`: `30`
-- Session `categoryName`: `Influenza`
-
-It does not send a NotePlan URL in Session notes, write metadata back into NotePlan, or add NotePlan line/block IDs.
-
-The command uses the selected or current task directly, so it works across NotePlan's configurable task marker styles. That includes checkbox tasks and plain task markers such as `*`, `-`, and numbered tasks, depending on how the user has configured NotePlan.
-
-For example:
-
-```markdown
-* [[Understand The Agentic AI Stack]]
-```
-
-sends `Understand The Agentic AI Stack` as the Session intent.
-
-## Category matching
-
-When you run `/start`, the plugin displays a fuzzy-searchable list of your NotePlan project notes. Select a note and its exact title is sent as Session's `categoryName`. The note's folder is shown in the search result to help distinguish notes with the same title, but it is not included in the category name.
-
-Session's URL scheme can select an existing category by `categoryName`, but it cannot create a category or tell the plugin whether a category exists. The selected NotePlan note title must therefore exactly match an existing Session category. Otherwise, Session may fall back to its default category.
-
-## Install manually
-
-1. Download and unzip `nomasprime.Session.zip`.
-2. In NotePlan, open **Settings/Preferences -> Plugins -> Open Plugin Folder**.
-3. Copy the whole `nomasprime.Session` folder into the Plugins folder.
-4. Restart NotePlan.
-5. Put the cursor on a task line.
-6. Run `/start`.
-
 ## Requirements
 
-- NotePlan with plugin support.
-- Session Pro, because Session's URL scheme is a Pro feature.
+- NotePlan
+- Session Pro
 
-## Tests
+## Starting A Session
 
-The Vitest suite documents the plugin's current task parsing, note selection,
-URL construction, and NotePlan integration behaviour.
+Run the `/start` command on one of the following:
+
+- Bullet
+- Open task
+- Open checklist
+- Section heading (not title heading)
+
+The selected item's duration determines what happens:
+
+| Item's Duration | Result |
+| --- | --- |
+| Shorthand appending title, eg, `'20m` | Prepend longhand (ie, make time block) and remove shorthand |
+| Longhand prepending title, eg, `09:00 - 09:20` | Shift time block to start now |
+| Has neither | Add child time block to selected item |
+
+A new apostrophe estimate overrides an existing range. The same rules apply to
+all supported item types in daily, project, and other calendar notes.
+
+Items with either a shorthand or longhand duration are estimated sessions, and items without are unestimated sessions.
+
+## Estimated Sessions
+
+Running at 09:08 on an item with a shorthand duration:
+
+```markdown
++ Startup '20m
+    + Splash face
+    + Protein shake
+```
+
+produces:
+
+```markdown
++ 09:08 - 09:28 Startup ^abc123
+    + Splash face
+    + Protein shake
+```
+
+Session starts for 20 minutes with the intention `Startup` and a backlink to
+`^abc123`. The selected item's type, indentation, children, folding notation, and
+existing block ID are preserved.
+
+Running again at 10:00 shifts the time block to this time:
+
+```markdown
++ 10:00 - 10:20 Startup ^abc123
+    + Splash face
+    + Protein shake
+```
+
+And updates the duration if a new estimate has been added:
+
+```markdown
++ 10:00 - 10:30 Startup '30m ^abc123
+  + Splash face
+  + Protein shake
+```
+
+Rerunning sends another start request to Session; it does not amend an earlier
+Session history entry.
+
+## Unestimated Sessions
+
+Running at 09:08 on 26 September 2026 on an item without a duration:
+
+```markdown
+* Review README
+```
+
+produces (with the default settings):
+
+```markdown
+* Review README
+    + 09:08 - 09:58 Session >2026-09-26 ^abc123
+```
+
+Each run on the parent item creates another checklist timeblock after its existing
+children. Running on an existing open child timeblock shifts the timeblock to start now.
+
+For a section heading, the new checklist is placed in that heading's body after
+its existing content, before the next heading. This keeps it out of any nested
+subsection. It has the same indentation as the heading, rather than being nested
+under the preceding checklist.
+
+The plugin settings control new child sessions:
+
+- **Unestimated Session Duration:** defaults to `50m`.
+- **Unestimated Session Title:** defaults to `Session`.
+
+Session starts for the setting's duration with a cleaned derivative of the selected item's title as the intention and a backlink to the new child timeblock inserted into the notes.
+
+### Durations
+
+Use a standalone apostrophe estimate on the selected line:
+
+- `'20m` → 20 minutes
+- `'1h` → 60 minutes
+- `'1h30m` → 90 minutes
+- `'3h` → 180 minutes
+
+Smart apostrophes (`’20m`) also work. Use whole hours and/or minutes, greater than
+zero and shorter than 24 hours. The **Default duration** setting accepts the same
+format; an empty setting falls back to `50m`. Invalid or multiple estimates stop
+the command before it changes the note or launches Session. Estimates are not
+inherited from parents.
+
+Existing blocks use a leading 24-hour range, as generated by this plugin.
+An end time earlier than the start is treated as the next day:
+`23:45 - 00:30` supplies 45 minutes. Equal start and end times are rejected.
+
+### Session And NotePlan
+
+The plugin sends Session the intention, duration, and backlink. Session uses its
+default category. Keep substantive work and notes in NotePlan. Completing or
+cancelling an item in NotePlan is separate from Session's status; statuses are not
+synced. Completing a child session does not complete its parent.
+
+Completed, cancelled, and scheduled-original (`[>]`) items are excluded. For a
+rescheduled item, select its active copy. An open item with a date link is allowed.
+
+No `#focus` or `#bokeh` tag is required or interpreted. Existing tags remain ordinary
+text; this version does not remove them. The old `#focus(50m)` and `#bokeh(20m)`
+shorthand does not supply a duration. Use apostrophe estimates instead.
+
+## Other Details
+
+- Today's daily note supplies the date implicitly. Elsewhere, the actual
+  timeblock gets today's `>YYYY-MM-DD` link. Existing explicit day links are
+  replaced on that item; creating a child leaves the source's dates unchanged.
+  Displaying blocks from other calendar notes on today's timeline still needs
+  verification in NotePlan.
+- The plugin adds NotePlan's required timeblock marker if one is configured in
+  **Settings → Tasks → Detect Time Blocks**. Timeblock detection must be enabled.
+- Backlinks use NotePlan's title-and-block-ID URL format. Renaming a note can
+  invalidate an existing Session backlink.
+- End times wrap across midnight. NotePlan controls how overnight blocks appear
+  in the timeline; the plugin does not split them into separate notes.
+- The note is saved before Session launches. If launching fails, the saved block
+  remains and an error is shown.
+
+Legacy `durationMinutes` and category-mapping settings remain unused.
+
+## Troubleshooting
+
+If observing old behaviour, try reloading plugins or restarting NotePlan.
+
+## Development
 
 ```sh
 pnpm install
 pnpm test
 ```
 
-Use `pnpm run test:watch` while developing.
-
-## Session URL produced
-
-The command sends Session a URL like:
-
-```text
-session:///start?intent=Write%20architecture%20proposal&duration=30&categoryName=Influenza
-```
-
-The plugin launches Session through NotePlan's `x-success` callback, so it does not need an HTML popup bridge.
-
-## Publishing notes
-
-Current plugin ID:
-
-```text
-nomasprime.Session
-```
-
-The folder name should match the plugin ID.
+API references: [NotePlan plugins](https://help.noteplan.co/article/70-javascript-plugin-api),
+[NotePlan time blocks](https://help.noteplan.co/article/121-time-blocking),
+[NotePlan links](https://help.noteplan.co/article/49-x-callback-url-scheme),
+[Session URL scheme](https://www.stayinsession.com/learn/session-url-scheme).

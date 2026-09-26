@@ -4,27 +4,36 @@
   "iOS.minVersion": "14",
   "plugin.id": "nomasprime.Session",
   "plugin.name": "🎯 Session",
-  "plugin.description": "Start a Session focus session from the current NotePlan task, using a selected NotePlan note title as the Session category.",
+  "plugin.description": "Timeblock bullets, tasks, checklists, and section headings, then start Session.",
   "plugin.author": "Nomas Prime",
-  "plugin.version": "0.1.9",
+  "plugin.version": "0.9.2",
   "plugin.dependencies": [],
   "plugin.script": "script.js",
-  "plugin.lastUpdateInfo": "/start now asks you to select a NotePlan note and uses its title as the Session category.",
+  "plugin.lastUpdateInfo": "Renamed the command from /session to /start.",
   "plugin.requiredFiles": [],
   "plugin.commands": [
     {
       "name": "start",
-      "description": "Start Session using the current task as the intent and a selected NotePlan note title as the category.",
+      "description": "Timeblock the selected item or add a child session, then start Session.",
       "jsFunction": "sendToSession"
     }
   ],
   "plugin.settings": [
     {
+      "key": "unestimatedSessionDuration",
       "type": "string",
-      "key": "durationMinutes",
-      "title": "Session duration in minutes",
-      "description": "Defaults to 30 minutes.",
-      "default": "30"
+      "title": "Unestimated Session Duration",
+      "description": "Duration of child sessions when the selected item is unestimated",
+      "default": "50m",
+      "required": true
+    },
+    {
+      "key": "unestimatedSessionTitle",
+      "type": "string",
+      "title": "Unestimated Session Title",
+      "description": "Title of child sessions when the selected item is unestimated",
+      "default": "Session",
+      "required": true
     }
   ]
 }
