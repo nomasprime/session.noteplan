@@ -33,16 +33,16 @@ Running at 09:08 on an item with a shorthand duration:
 
 ```markdown
 + Startup '20m
-    + Splash face
-    + Protein shake
+  + Splash face
+  + Protein shake
 ```
 
 produces:
 
 ```markdown
 + 09:08 - 09:28 Startup ^abc123
-    + Splash face
-    + Protein shake
+  + Splash face
+  + Protein shake
 ```
 
 Session starts for 20 minutes with the intention `Startup` and a backlink to
@@ -53,8 +53,8 @@ Running again at 10:00 shifts the time block to this time:
 
 ```markdown
 + 10:00 - 10:20 Startup ^abc123
-    + Splash face
-    + Protein shake
+  + Splash face
+  + Protein shake
 ```
 
 And updates the duration if a new estimate has been added:
@@ -100,7 +100,7 @@ produces (with the default settings):
 
 ```markdown
 * Review README
-    + 09:08 - 09:58 Session >2026-09-26 ^abc123
+  + 09:08 - 09:58 Session >2026-09-26 ^abc123
 ```
 
 Each run on the parent item creates another checklist timeblock after its existing
