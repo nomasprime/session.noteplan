@@ -147,12 +147,7 @@ shorthand does not supply a duration. Use apostrophe estimates instead.
   in the timeline; the plugin does not split them into separate notes.
 - The note is saved before Session launches. If launching fails, the saved block
   remains and an error is shown.
-
-Legacy `durationMinutes` and category-mapping settings remain unused.
-
-## Troubleshooting
-
-If observing old behaviour, try reloading plugins or restarting NotePlan.
+- If observing old behaviour, try reloading plugins or restarting NotePlan
 
 ## Development
 
