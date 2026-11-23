@@ -1,9 +1,8 @@
-import { defineConfig } from "vitest/config";
+/** @type {import("vitest/config").TestUserConfig} */
+const test = {
+  environment: "node",
+  clearMocks: true,
+  restoreMocks: true,
+};
 
-export default defineConfig({
-  test: {
-    environment: "node",
-    clearMocks: true,
-    restoreMocks: true,
-  },
-});
+export default { test };

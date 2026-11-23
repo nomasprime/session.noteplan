@@ -4,6 +4,8 @@ import plugin from "../script.js";
 
 const {
   sendToSession,
+  timeblock,
+  untimeblock,
   parseDuration,
   parseBlockDuration,
   getIntent,
@@ -127,6 +129,7 @@ function setup(content = "Startup '20m", options = {}) {
   };
   globalThis.NotePlan = { openURL: vi.fn().mockResolvedValue(undefined) };
   globalThis.CommandBar = {
+    showForm: vi.fn(),
     textPrompt: vi
       .fn()
       .mockResolvedValue(options.answer === undefined ? "" : options.answer),
@@ -170,6 +173,266 @@ afterEach(() => {
   vi.useRealTimers();
   for (const name of ["Editor", "DataStore", "NotePlan", "CommandBar"])
     delete globalThis[name];
+});
+
+it("registers the timeblock, untimeblock, and Session start commands", () => {
+  const commands = manifest["plugin.commands"];
+  expect(commands.map(({ name }) => name)).toEqual([
+    "start",
+    "timeblock",
+    "untimeblock",
+  ]);
+  expect(commands.map(({ jsFunction }) => globalThis[jsFunction])).toEqual([
+    sendToSession,
+    timeblock,
+    untimeblock,
+  ]);
+});
+
+describe("/timeblock on an existing range", () => {
+  function submit(values) {
+    CommandBar.showForm.mockResolvedValue({ submitted: true, values });
+  }
+
+  it.each([
+    [{ start: "now" }, "09:07 - 10:00"],
+    [{ start: "now", duration: "45m" }, "09:07 - 09:52"],
+    [{ start: "+15m" }, "08:15 - 10:00"],
+    [{ start: "-15m", duration: "45m" }, "07:45 - 08:30"],
+    [{ start: "09:00" }, "09:00 - 10:00"],
+    [{ start: "23:30", duration: "1h30m" }, "23:30 - 01:00"],
+    [{ end: "-10m" }, "08:00 - 09:50"],
+    [{ end: "+15m", duration: "1h" }, "09:15 - 10:15"],
+    [{ end: "09:30" }, "08:00 - 09:30"],
+    [{ end: "00:15", duration: "30m" }, "23:45 - 00:15"],
+    [{ duration: "45m" }, "08:00 - 08:45"],
+    [{ start: "09:15", end: "10:30" }, "09:15 - 10:30"],
+    [{ start: "now", end: "+15m" }, "09:07 - 10:15"],
+    [{ start: "+15m", end: "-15m" }, "08:15 - 09:45"],
+    [{ start: "23:45", end: "00:30" }, "23:45 - 00:30"],
+  ])("applies timeblock edits %j", async (values, expected) => {
+    const suffix = "  Review 09:30 >tomorrow #🕑 … ^existing";
+    const { records, parentIndex } = setupTask("08:00 - 10:00" + suffix, {
+      paragraph: { indents: 1 },
+    });
+    const before = structuredClone(records);
+    submit(values);
+    await timeblock();
+    expect(CommandBar.showForm).toHaveBeenCalledOnce();
+    expect(CommandBar.textPrompt).not.toHaveBeenCalled();
+    expect(records[parentIndex]).toMatchObject({
+      content: expected + suffix,
+      type: "open",
+      indents: 1,
+    });
+    expect(records.slice(parentIndex + 1)).toEqual(
+      before.slice(parentIndex + 1),
+    );
+    expect(Editor.updateParagraph).toHaveBeenCalledOnce();
+    expect(Editor.save).toHaveBeenCalledOnce();
+    expect(Editor.addBlockID).not.toHaveBeenCalled();
+    expect(Editor.insertParagraphAfterParagraph).not.toHaveBeenCalled();
+    expect(NotePlan.openURL).not.toHaveBeenCalled();
+    expect(CommandBar.prompt).not.toHaveBeenCalled();
+  });
+
+  it("shortens an overnight block without requiring Session APIs", async () => {
+    const { records, parentIndex } = setup("23:30–00:15 Work", {
+      legacyIndexes: true,
+    });
+    delete globalThis.NotePlan;
+    delete Editor.addBlockID;
+    submit({ end: "-30m" });
+    await timeblock();
+    expect(records[parentIndex].content).toBe("23:30 - 23:45 Work");
+  });
+
+  it.each([
+    { duration: "24h" },
+    { start: "24:00" },
+    { end: "08:00" },
+    { end: "now" },
+    { start: "15m" },
+    { start: "+31m" },
+    { end: "-31m" },
+    { end: "+23h30m" },
+    { start: "+20m", end: "-20m" },
+    { start: "09:00", end: "10:00", duration: "45m" },
+  ])("leaves the note untouched after invalid edits %j", async (values) => {
+    setup("08:00 - 08:30 Work");
+    const before = Editor.content;
+    submit(values);
+    await timeblock();
+    expectNoMutation(before);
+    expect(CommandBar.prompt).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    undefined,
+    { submitted: false },
+    { submitted: true, values: { start: "", end: " ", duration: "" } },
+  ])(
+    "leaves the note untouched when the form is cancelled or blank (%j)",
+    async (result) => {
+      setup("08:00 - 08:30 Work");
+      const before = Editor.content;
+      CommandBar.showForm.mockResolvedValue(result);
+      await timeblock();
+      expectNoMutation(before);
+      expect(CommandBar.textPrompt).not.toHaveBeenCalled();
+      expect(CommandBar.prompt).not.toHaveBeenCalled();
+    },
+  );
+
+  it("uses a single text prompt on NotePlan versions without forms", async () => {
+    const { records, parentIndex } = setup("08:00 - 08:30 Work", {
+      answer: "start=09:15 end=10:30",
+    });
+    delete CommandBar.showForm;
+    await timeblock();
+    expect(records[parentIndex].content).toBe("09:15 - 10:30 Work");
+    expect(CommandBar.textPrompt).toHaveBeenCalledOnce();
+  });
+
+  it.each([false, "start=09:00 start=10:00"])(
+    "handles cancelled or invalid text input %j",
+    async (answer) => {
+      setup("08:00 - 08:30 Work");
+      const before = Editor.content;
+      delete CommandBar.showForm;
+      CommandBar.textPrompt.mockResolvedValue(answer);
+      await timeblock();
+      expectNoMutation(before);
+      if (answer === false) expect(CommandBar.prompt).not.toHaveBeenCalled();
+      else expect(CommandBar.prompt).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("avoids overwriting the note if it changes during the prompt", async () => {
+    const { records, parentIndex } = setup("08:00 - 08:30 Work");
+    CommandBar.showForm.mockImplementation(async () => {
+      records[parentIndex].content += " in progress";
+      return { submitted: true, values: { start: "now" } };
+    });
+    await timeblock();
+    expect(records[parentIndex].content).toBe("08:00 - 08:30 Work in progress");
+    expect(Editor.updateParagraph).not.toHaveBeenCalled();
+    expect(Editor.save).not.toHaveBeenCalled();
+    expect(CommandBar.prompt).toHaveBeenCalledOnce();
+  });
+});
+
+describe("/timeblock on an untimed item", () => {
+  it.each([
+    ["now 45m", "09:07 - 09:52"],
+    ["+15m 45m", "09:22 - 10:07"],
+    ["-1h 45m", "08:07 - 08:52"],
+    ["14:30 45m", "14:30 - 15:15"],
+    ["23:45 - 00:30", "23:45 - 00:30"],
+  ])("adds %s to the selected item in place", async (answer, range) => {
+    const body = "Review  README '20m >tomorrow … ^existing";
+    const { records, parentIndex } = setupTask(body, {
+      answer,
+      paragraph: { indents: 1 },
+    });
+    const before = structuredClone(records);
+    await timeblock();
+    expect(CommandBar.textPrompt).toHaveBeenCalledOnce();
+    expect(CommandBar.showForm).not.toHaveBeenCalled();
+    expect(records[parentIndex]).toMatchObject({
+      content: range + " " + body,
+      type: "open",
+      indents: 1,
+    });
+    expect(records.slice(parentIndex + 1)).toEqual(
+      before.slice(parentIndex + 1),
+    );
+    expect(Editor.updateParagraph).toHaveBeenCalledOnce();
+    expect(Editor.save).toHaveBeenCalledOnce();
+    expect(Editor.addBlockID).not.toHaveBeenCalled();
+    expect(NotePlan.openURL).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      "Projects/Work.md",
+      "Notes",
+      "Review ^existing",
+      "Review >2026-09-24 #🕑 ^existing",
+    ],
+    [
+      "Projects/Work.md",
+      "Notes",
+      "Review >tomorrow #🕑 ^existing",
+      "Review >tomorrow #🕑 ^existing",
+    ],
+    ["Projects/Work.md", "Notes", "^existing", ">2026-09-24 #🕑 ^existing"],
+    ["20260925.md", "Calendar", "Review ^existing", "Review #🕑 ^existing"],
+  ])(
+    "sets the marker and any needed date for %s",
+    async (filename, type, body, expected) => {
+      const { records, parentIndex } = setup(body, {
+        answer: "14:30 45m",
+        marker: "#🕑",
+        note: { filename, type },
+      });
+      await timeblock();
+      expect(records[parentIndex].content).toBe("14:30 - 15:15 " + expected);
+    },
+  );
+
+  it("does not add a second time to a start-only block", async () => {
+    setup("08:00 Review", { answer: "now 45m" });
+    const before = Editor.content;
+    await timeblock();
+    expectNoMutation(before);
+    expect(CommandBar.textPrompt).not.toHaveBeenCalled();
+    expect(CommandBar.showForm).not.toHaveBeenCalled();
+    expect(CommandBar.prompt).toHaveBeenCalledOnce();
+  });
+
+  it.each([false, "now 0m", "14:30 - 14:30", "14:30 - 15:00 extra"])(
+    "leaves the item untouched after cancellation or invalid input %j",
+    async (answer) => {
+      setup("Review", { answer });
+      const before = Editor.content;
+      await timeblock();
+      expectNoMutation(before);
+      if (answer === false) expect(CommandBar.prompt).not.toHaveBeenCalled();
+      else expect(CommandBar.prompt).toHaveBeenCalledOnce();
+    },
+  );
+});
+
+describe("/untimeblock", () => {
+  it.each(["open", "checklistDone", "title"])(
+    "strips the range and preserves the selected %s and its children",
+    async (type) => {
+      const body = "Check 09:30 - 10:00 slot '20m >tomorrow #🕑 … ^existing";
+      const { records, parentIndex } = setup("23:45–00:30  " + body, {
+        legacyIndexes: true,
+        paragraph: { type, indents: 1, headingLevel: 2 },
+      });
+      const before = structuredClone(records);
+      await untimeblock();
+      before[parentIndex].content = body;
+      expect(records).toEqual(before);
+      expect(Editor.updateParagraph).toHaveBeenCalledOnce();
+      expect(Editor.save).toHaveBeenCalledOnce();
+      expect(Editor.addBlockID).not.toHaveBeenCalled();
+      expect(Editor.removeBlockID).not.toHaveBeenCalled();
+      expect(NotePlan.openURL).not.toHaveBeenCalled();
+      expect(CommandBar.prompt).not.toHaveBeenCalled();
+    },
+  );
+
+  it("leaves an item without a leading range untouched", async () => {
+    setup("Check 09:30 - 10:00 slot");
+    const before = Editor.content;
+    await untimeblock();
+    expectNoMutation(before);
+    expect(CommandBar.prompt).toHaveBeenCalledOnce();
+  });
 });
 
 describe("apostrophe estimates", () => {

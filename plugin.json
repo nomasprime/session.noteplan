@@ -4,18 +4,28 @@
   "iOS.minVersion": "14",
   "plugin.id": "nomasprime.Session",
   "plugin.name": "🎯 Session",
-  "plugin.description": "Timeblock bullets, tasks, checklists, and section headings, then start Session.",
+  "plugin.description": "Add, edit, and remove timeblocks in NotePlan, or timeblock an item and start Session.",
   "plugin.author": "Nomas Prime",
   "plugin.version": "0.9.2",
   "plugin.dependencies": [],
   "plugin.script": "script.js",
-  "plugin.lastUpdateInfo": "Renamed the command from /session to /start.",
+  "plugin.lastUpdateInfo": "Use /timeblock to add or edit a timeblock and /untimeblock to remove its time range.",
   "plugin.requiredFiles": [],
   "plugin.commands": [
     {
       "name": "start",
       "description": "Timeblock the selected item or add a child session, then start Session.",
       "jsFunction": "sendToSession"
+    },
+    {
+      "name": "timeblock",
+      "description": "Add or edit the time range on the selected item.",
+      "jsFunction": "timeblock"
+    },
+    {
+      "name": "untimeblock",
+      "description": "Remove the time range from the selected timeblock and keep the item.",
+      "jsFunction": "untimeblock"
     }
   ],
   "plugin.settings": [

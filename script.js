@@ -1,8 +1,8 @@
-/* Session for NotePlan — /start */
+/// <reference path="./noteplan.d.ts" />
+/* Session for NotePlan */
 
 async function sendToSession() {
-  let blockSaved = false;
-  try {
+  await runNoteCommand("Session", async (markSaved) => {
     if (typeof Editor === "undefined" || !Editor.note) {
       throw new Error(
         "Open a note and put the cursor on a bullet, open task, checklist, or section heading.",
@@ -124,7 +124,7 @@ async function sendToSession() {
         insertion.after,
         "checklist",
       );
-      blockSaved = true;
+      markSaved();
       // Inserting changes line indexes. Re-read the new native paragraph by ID.
       const inserted = Editor.paragraphs.find((p) => getBlockID(p) === blockID);
       if (!inserted)
@@ -135,22 +135,268 @@ async function sendToSession() {
       Editor.updateParagraph(inserted);
     } else {
       Editor.updateParagraph(target);
-      blockSaved = true;
+      markSaved();
     }
     if (typeof Editor.save === "function") await Editor.save();
     // NotePlan's own x-success callback hands off to Session after saving.
     await NotePlan.openURL(
       blockURL + "&x-success=" + encodeURIComponent(sessionURL),
     );
-  } catch (error) {
-    const message = error && error.message ? error.message : String(error);
-    console.log("Session: " + message);
-    await showMessage(
-      (blockSaved
-        ? "The note was updated, but the command could not finish. "
-        : "") + message,
+  });
+}
+
+async function timeblock() {
+  await runNoteCommand("Timeblock", async (markSaved) => {
+    const paragraph = getSelectedTimeblockItem();
+    const source = String(paragraph.content || "");
+    const range = parseBlockRange(source);
+    if (!range && stripLeadingTime(source) !== source)
+      throw new Error(
+        "This item has a start time only. Add an end time to the range before editing it with /timeblock.",
+      );
+    if (
+      typeof Editor.updateParagraph !== "function" ||
+      typeof CommandBar === "undefined" ||
+      (typeof CommandBar.textPrompt !== "function" &&
+        (!range || typeof CommandBar.showForm !== "function"))
+    )
+      throw new Error(
+        "This version of NotePlan does not support the APIs required by /timeblock.",
+      );
+
+    const note = Editor.note;
+    const filename = note.filename;
+    const noteContent = Editor.content;
+    let updated;
+    let suffix;
+    if (range) {
+      const changes = await promptTimeblockChanges(
+        "Update timeblock " + range.text.trim(),
+      );
+      if (!changes) return;
+      updated = getUpdatedRange(range, changes);
+      if (!updated) return;
+      suffix = source.slice(range.text.length);
+    } else {
+      const answer = await CommandBar.textPrompt(
+        "Add timeblock",
+        "Enter a start and duration, such as now 45m, +15m 45m, or 14:30 45m. You can also enter a range such as 14:30 - 15:15.",
+        "",
+      );
+      if (typeof answer !== "string") return;
+      const now = new Date();
+      updated = getNewRange(answer.trim(), now);
+      suffix = " " + addTimeblockMetadata(source, note, now);
+    }
+    assertSameNote(filename, noteContent);
+
+    const content =
+      formatClockTime(updated.start) +
+      " - " +
+      formatClockTime(updated.end) +
+      suffix;
+    if (content === source) return;
+    paragraph.content = content;
+    Editor.updateParagraph(paragraph);
+    markSaved(
+      "The time range was edited in the editor, but saving could not finish.",
     );
+    if (typeof Editor.save === "function") await Editor.save();
+  });
+}
+
+function getNewRange(input, now) {
+  const range = parseBlockRange(input);
+  if (range && range.text === input) return range;
+  const match = input.match(/^(\S+)\s+(\S+)$/);
+  if (!match)
+    throw new Error(
+      "Enter a start and duration, such as now 45m, or a range such as 14:30 - 15:15.",
+    );
+
+  const [, time, duration] = match;
+  let start;
+  if (time.toLowerCase() === "now") start = clockMinutes(now);
+  else if (/^[+-]/.test(time))
+    start = clockMinutes(now) + parseTimeOffset(time);
+  else start = parseClockTime(time);
+  return { start, end: start + parseDurationValue(duration) };
+}
+
+function addTimeblockMetadata(source, note, now) {
+  const dailyNote =
+    note.type === "Calendar" &&
+    /(?:^|\/)\d{8}(?:\.(?:md|txt))?$/i.test(note.filename);
+  const hasDateTag =
+    /(?:^|\s)>(?:\d{4}-\d{2}-\d{2}|today|tomorrow|yesterday)(?=\s|$)/.test(
+      source,
+    );
+  const marker = getTimeBlockMarker();
+  const metadata = [
+    !dailyNote && !hasDateTag ? ">" + localDate(now) : "",
+    marker && !source.normalize("NFC").includes(marker.normalize("NFC"))
+      ? marker
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  if (!metadata) return source;
+  // Keep the block ID at the end, so existing links keep working.
+  return source.replace(
+    /(?:^|\s+)\^[A-Za-z0-9_-]+\s*$|\s*$/,
+    (suffix, index) => {
+      const before = index > 0 ? " " : "";
+      const after = suffix.startsWith("^") ? " " : "";
+      return before + metadata + after + suffix;
+    },
+  );
+}
+
+async function promptTimeblockChanges(title) {
+  if (typeof CommandBar.showForm === "function") {
+    const result = await CommandBar.showForm({
+      title,
+      submitText: "Update",
+      fields: [
+        {
+          type: "string",
+          key: "start",
+          title: "Start time",
+          placeholder: "now, 14:30, or +15m",
+        },
+        {
+          type: "string",
+          key: "end",
+          title: "End time",
+          placeholder: "15:30 or -15m",
+        },
+        {
+          type: "string",
+          key: "duration",
+          title: "Duration",
+          placeholder: "45m or 1h30m",
+          description:
+            "Leave blank when setting both times. A duration alone keeps the current start time.",
+        },
+      ],
+    });
+    return result && result.submitted ? result.values : null;
   }
+
+  const answer = await CommandBar.textPrompt(
+    title,
+    "Enter one or two fields, such as start=now, start=+15m end=15:30, or end=15:30 duration=45m.",
+    "",
+  );
+  if (typeof answer !== "string" || !answer.trim()) return null;
+  const changes = {};
+  for (const field of answer.trim().split(/\s+/)) {
+    const match = field.match(/^(start|end|duration)=(\S+)$/);
+    if (!match || changes[match[1]])
+      throw new Error(
+        "Use each field at most once, such as start=now end=15:30 or duration=45m.",
+      );
+    changes[match[1]] = match[2];
+  }
+  return changes;
+}
+
+async function untimeblock() {
+  await runNoteCommand("Untimeblock", async (markSaved) => {
+    const paragraph = getSelectedTimeblockItem();
+    const source = String(paragraph.content || "");
+    const range = parseBlockRange(source);
+    if (!range)
+      throw new Error(
+        "Select a timeblock that starts with a range like 09:00 - 09:50.",
+      );
+    if (typeof Editor.updateParagraph !== "function")
+      throw new Error(
+        "This version of NotePlan does not support the API required by /untimeblock.",
+      );
+
+    paragraph.content = source.slice(range.text.length).trimStart();
+    Editor.updateParagraph(paragraph);
+    markSaved(
+      "The time range was removed in the editor, but saving could not finish.",
+    );
+    if (typeof Editor.save === "function") await Editor.save();
+  });
+}
+
+function getSelectedTimeblockItem() {
+  const selectionError =
+    "Put the cursor on one bullet, task, checklist, or section heading.";
+  if (typeof Editor === "undefined" || !Editor.note)
+    throw new Error(selectionError);
+  const selected = Editor.selectedParagraphs || [];
+  if (selected.length !== 1) throw new Error(selectionError);
+  const paragraph = selected[0];
+  if (
+    ![
+      "list",
+      "open",
+      "done",
+      "cancelled",
+      "checklist",
+      "checklistDone",
+      "checklistCancelled",
+      "title",
+    ].includes(paragraph.type)
+  )
+    throw new Error(selectionError);
+  if (isNoteTitleHeading(paragraph, getSelectedLocation(paragraph)))
+    throw new Error("Select an item below the note title heading.");
+  return paragraph;
+}
+
+function assertSameNote(filename, noteContent) {
+  if (
+    !Editor.note ||
+    Editor.note.filename !== filename ||
+    Editor.content !== noteContent
+  )
+    throw new Error(
+      "The note changed while the command was open. Select the item again and retry.",
+    );
+}
+
+function getUpdatedRange(range, { start = "", end = "", duration = "" }) {
+  const startInput = start.trim();
+  const endInput = end.trim();
+  const durationInput = duration.trim();
+  if (!startInput && !endInput && !durationInput) return null;
+  if (startInput && endInput && durationInput)
+    throw new Error(
+      "Leave duration blank when setting both start and end times.",
+    );
+
+  const updatedStart =
+    startInput.toLowerCase() === "now"
+      ? clockMinutes(new Date())
+      : resolveTimeEdit(startInput, range.start);
+  const updatedEnd = resolveTimeEdit(endInput, range.start + range.duration);
+
+  if (durationInput) {
+    const minutes = parseDurationValue(durationInput);
+    if (endInput) return { start: updatedEnd - minutes, end: updatedEnd };
+    return { start: updatedStart, end: updatedStart + minutes };
+  }
+
+  // Keep relative changes on their original timeline. An explicit clock time
+  // uses the range convention that an earlier end clock time is the next day.
+  const hasClockTime = [startInput, endInput].some(
+    (value) => value && !/^[+-]/.test(value),
+  );
+  const elapsed = updatedEnd - updatedStart;
+  validateBlockDuration(hasClockTime ? wrapClockTime(elapsed) : elapsed);
+  return { start: updatedStart, end: updatedEnd };
+}
+
+function resolveTimeEdit(value, current) {
+  if (!value) return current;
+  if (/^[+-]/.test(value)) return current + parseTimeOffset(value);
+  return parseClockTime(value);
 }
 
 function getSelectedLocation(selected) {
@@ -175,7 +421,7 @@ function getSelectedLocation(selected) {
     parent.indents !== selected.indents
   ) {
     throw new Error(
-      "Could not locate the selected item safely. Select it again and run /start.",
+      "Could not locate the selected item safely. Select it again and retry.",
     );
   }
   return { paragraphs, position, parent, bodyStart };
@@ -256,6 +502,11 @@ function parseDurationValue(value) {
 }
 
 function parseBlockDuration(content) {
+  const range = parseBlockRange(content);
+  return range ? range.duration : null;
+}
+
+function parseBlockRange(content) {
   const range = String(content).match(
     /^\s*(\d{1,2}):(\d{2})\s*[-–]\s*(\d{1,2}):(\d{2})(?=\s|$)/,
   );
@@ -267,13 +518,18 @@ function parseBlockDuration(content) {
     );
   }
   // A smaller end time is the following day, e.g. 23:45 - 00:30 = 45 minutes.
-  const duration =
-    ((endHour - startHour) * 60 + endMinute - startMinute + 1440) % 1440;
-  if (!duration)
+  const start = startHour * 60 + startMinute;
+  const end = endHour * 60 + endMinute;
+  const duration = wrapClockTime(end - start);
+  validateBlockDuration(duration);
+  return { text: range[0], start, end, duration };
+}
+
+function validateBlockDuration(duration) {
+  if (duration <= 0 || duration >= 1440)
     throw new Error(
       "The timeblock must have a duration greater than zero and shorter than 24 hours.",
     );
-  return duration;
 }
 
 function stripLeadingTime(content) {
@@ -329,10 +585,35 @@ function buildTimeBlock(content, now, duration, marker, dateTag) {
 }
 
 function formatTime(date) {
+  return formatClockTime(clockMinutes(date));
+}
+
+function clockMinutes(date) {
+  return date.getHours() * 60 + date.getMinutes();
+}
+
+function parseClockTime(value) {
+  const match = value.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+  if (!match) throw new Error("Enter a 24-hour time such as 14:30.");
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function parseTimeOffset(value) {
+  if (!/^[+-]/.test(value))
+    throw new Error("Enter a signed offset such as +15m or -1h.");
+  return parseDurationValue(value.slice(1)) * (value[0] === "-" ? -1 : 1);
+}
+
+function wrapClockTime(minutes) {
+  return ((minutes % 1440) + 1440) % 1440;
+}
+
+function formatClockTime(minutes) {
+  const time = wrapClockTime(minutes);
   return (
-    String(date.getHours()).padStart(2, "0") +
+    String(Math.floor(time / 60)).padStart(2, "0") +
     ":" +
-    String(date.getMinutes()).padStart(2, "0")
+    String(time % 60).padStart(2, "0")
   );
 }
 
@@ -405,6 +686,21 @@ function buildSessionURL(intent, duration, blockURL) {
   return "session:///start?" + params.join("&");
 }
 
+async function runNoteCommand(label, command) {
+  let savedMessage = "";
+  try {
+    await command(
+      (message = "The note was updated, but the command could not finish.") => {
+        savedMessage = message;
+      },
+    );
+  } catch (error) {
+    const message = error && error.message ? error.message : String(error);
+    console.log(label + ": " + message);
+    await showMessage(savedMessage ? savedMessage + " " + message : message);
+  }
+}
+
 async function showMessage(message) {
   if (
     typeof CommandBar !== "undefined" &&
@@ -418,11 +714,15 @@ async function showMessage(message) {
 
 Object.assign(typeof globalThis === "undefined" ? this : globalThis, {
   sendToSession,
+  timeblock,
+  untimeblock,
 });
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     sendToSession,
+    timeblock,
+    untimeblock,
     parseDuration,
     parseBlockDuration,
     getIntent,
