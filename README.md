@@ -8,15 +8,15 @@ Allows users to:
 - Add child timeblocks to unestimated items
 - Automatically start sessions with backlinks to the corresponding timeblock
 
+For adding, editing, or removing timeblocks without starting Session, use the
+[Timeblock plugin](../nomasprime.Timeblock/README.md).
+
 Recommend keeping working notes in NotePlan and focus or workflow notes in Session.
 
 ## Requirements
 
 - NotePlan with timeblock detection enabled
 - Session Pro for starting sessions from NotePlan
-
-For adding, editing, or removing timeblocks without starting Session, use the
-[Timeblock plugin](../nomasprime.Timeblock/README.md).
 
 ## Starting A Session
 
