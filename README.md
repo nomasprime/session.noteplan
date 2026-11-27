@@ -5,9 +5,7 @@ A NotePlan plugin for [Session](https://www.stayinsession.com/).
 Allows users to:
 
 - Transform estimated items into timeblocks using duration shorthand
-- Add timeblocks to unestimated items
-- Edit the start, end, or duration of an existing timeblock in NotePlan
-- Remove a timeblock's time range and keep the item
+- Add child timeblocks to unestimated items
 - Automatically start sessions with backlinks to the corresponding timeblock
 
 Recommend keeping working notes in NotePlan and focus or workflow notes in Session.
@@ -17,54 +15,8 @@ Recommend keeping working notes in NotePlan and focus or workflow notes in Sessi
 - NotePlan with timeblock detection enabled
 - Session Pro for starting sessions from NotePlan
 
-## Adding A Timeblock
-
-Put the cursor on an item without a leading time and run `/timeblock`. Enter the
-start and duration, or enter both 24-hour times.
-
-| Input           | Result                                           |
-| --------------- | ------------------------------------------------ |
-| `now 45m`       | Start now and block 45 minutes                   |
-| `+15m 45m`      | Start 15 minutes from now and block 45 minutes   |
-| `-15m 45m`      | Start 15 minutes before now and block 45 minutes |
-| `14:30 45m`     | Block `14:30 - 15:15`                            |
-| `14:30 - 15:15` | Block `14:30 - 15:15`                            |
-
-The command adds the range to the selected item without opening Session. It
-uses the item's existing date link or daily note date. For other notes with no
-date link, it adds today's date. It also adds the configured timeblock marker
-if needed.
-
-## Updating A Timeblock
-
-Put the cursor on an item that begins with a 24-hour range such as
-`09:00 - 09:50` and run `/timeblock`. The command saves the edit in
-NotePlan without opening Session.
-
-Enter a 24-hour time or a signed offset such as `+15m` in **Start time** or
-**End time**. **Start time** also accepts `now`. Leave a field blank to keep
-that endpoint when **Duration** is blank. To change just the start of
-`09:00 - 09:50` to `09:15`, fill in **Start time** only.
-
-| Fields filled in   | Result                                       |
-| ------------------ | -------------------------------------------- |
-| Start and end      | Use both endpoints to determine the duration |
-| Start and duration | Set the end from the new start and duration  |
-| End and duration   | Set the start from the new end and duration  |
-| Duration only      | Keep the current start and set a new end     |
-
-Use durations such as `45m` or `1h30m`. With explicit clock times, an end time
-earlier than the start time represents the following day. If NotePlan shows a
-text prompt, enter the same fields as `start=09:15 end=10:00` or `duration=45m`.
-
-The edit updates the clock times on the existing item and keeps its scheduling
-date, tags, and block ID.
-
-## Removing A Timeblock
-
-Put the cursor on a timeblock and run `/untimeblock`. For example, a task that says
-`09:00 - 09:50 Review README ^abc123` becomes `Review README ^abc123`. The task,
-its scheduling date, and any children stay in the note.
+For adding, editing, or removing timeblocks without starting Session, use the
+[Timeblock plugin](../nomasprime.Timeblock/README.md).
 
 ## Starting A Session
 
@@ -174,8 +126,8 @@ under the preceding checklist.
 
 The plugin settings control new child sessions:
 
-- **Unestimated Session Duration:** defaults to `50m`.
-- **Unestimated Session Title:** defaults to `Session`.
+- **Unestimated Session Duration:** defaults to `50m`
+- **Unestimated Session Title:** defaults to `Session`
 
 Session starts for the setting's duration with a cleaned derivative of the selected item's title as the intention and a backlink to the new child timeblock inserted into the notes.
 
@@ -197,6 +149,7 @@ Session starts for the setting's duration with a cleaned derivative of the selec
 ```sh
 pnpm install
 pnpm test
+pnpm exec prettier --check .
 ```
 
 API references: [NotePlan plugins](https://help.noteplan.co/article/70-javascript-plugin-api),
